@@ -51,10 +51,11 @@ emby docker-compose env
 - 'HTTP_PROXY=http://127.0.0.1:7890'
 - 'HTTPS_PROXY=http://127.0.0.1:7890'
 ```
-另外clash 这两个域名记得设置代理规则
+另外clash 这三个域名记得设置代理规则
 ```
 resources.ani.rip
 aniopen.an-i.workers.dev
+openani.an-i.workers.dev
 ```
 
 ## Todo:
