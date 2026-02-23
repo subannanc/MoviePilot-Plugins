@@ -125,5 +125,14 @@
     "icon": "https://raw.githubusercontent.com/honue/MoviePilot-Plugins/main/icons/clouddrive.png",
     "author": "honue",
     "level": 1
+  },
+  "MediaTargetPathApi": {
+    "name": "媒体转移目标路径查询",
+    "description": "查询媒体文件转移后的目标路径",
+    "version": "1.0.0",
+    "v2": true,
+    "icon": "https://raw.githubusercontent.com/honue/MoviePilot-Plugins/main/icons/clouddrive.png",
+    "author": "honue",
+    "level": 1
   }
 }
