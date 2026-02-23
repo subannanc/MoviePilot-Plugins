@@ -62,7 +62,7 @@
   "CleanLogs": {
     "name": "插件日志清理",
     "description": "定时清理插件产生的日志",
-    "version": "1.1",
+    "version": "1.2",
     "v2": true,
     "history": {
       "v1.1": "t佬看不下去了，决定亲自出手",
@@ -117,10 +117,10 @@
       "v1.4": "增加文件名规则；避免大小写导致的番剧无法匹配"
     }
   },
-  "Cd2Upload": {
-    "name": "cd2上传",
+  "Cd2Strm": {
+    "name": "Cd2Strm",
     "description": "将新入库的媒体文件，通过cd2上传生成strm（自用）",
-    "version": "0.1.1",
+    "version": "0.0.4",
     "v2": true,
     "icon": "https://raw.githubusercontent.com/honue/MoviePilot-Plugins/main/icons/clouddrive.png",
     "author": "honue",
