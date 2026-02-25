@@ -11,7 +11,7 @@
   "AdaptiveIntroSkip": {
     "name": "自适应IntroSkip",
     "description": "通过用户的暂停与播放动作，批量标记片头片尾",
-    "version": "1.7.7",
+    "version": "1.7.8",
     "v2": true,
     "history": {
       "v1.7": "fix: 新入库剧集标记片头的一些错误，如遇到问题请重置插件。",
@@ -62,7 +62,7 @@
   "CleanLogs": {
     "name": "插件日志清理",
     "description": "定时清理插件产生的日志",
-    "version": "1.1",
+    "version": "1.3",
     "v2": true,
     "history": {
       "v1.1": "t佬看不下去了，决定亲自出手",
@@ -117,10 +117,19 @@
       "v1.4": "增加文件名规则；避免大小写导致的番剧无法匹配"
     }
   },
-  "Cd2Upload": {
-    "name": "cd2上传",
+  "Cd2Strm": {
+    "name": "Cd2Strm",
     "description": "将新入库的媒体文件，通过cd2上传生成strm（自用）",
-    "version": "0.1.1",
+    "version": "0.0.5",
+    "v2": true,
+    "icon": "https://raw.githubusercontent.com/honue/MoviePilot-Plugins/main/icons/clouddrive.png",
+    "author": "honue",
+    "level": 1
+  },
+  "MediaTargetPathApi": {
+    "name": "媒体转移目标路径查询",
+    "description": "查询媒体文件转移后的目标路径",
+    "version": "1.0.0",
     "v2": true,
     "icon": "https://raw.githubusercontent.com/honue/MoviePilot-Plugins/main/icons/clouddrive.png",
     "author": "honue",

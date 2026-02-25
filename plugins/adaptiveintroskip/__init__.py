@@ -375,11 +375,20 @@ class AdaptiveIntroSkip(_PluginBase):
                                         ]
                                     },
                                     {
-                                        'component': 'VCol',
-                                        'props': {'cols': 12},
-                                        'content': [
-                                            {'component': 'VAlert', 'props': {'type': 'info', 'variant': 'tonal', 'text': '具体安装使用说明见README https://github.com/honue/MoviePilot-Plugins'}}
-                                        ]
+                                        'component': 'VAlert',
+                                        'props': {
+                                            'type': 'info',
+                                            'variant': 'tonal',
+                                            "text": "Emby 4.9 推荐使用：https://github.com/honue/MediaInfoKeeper"
+                                        }
+                                    },
+                                    {
+                                        'component': 'VAlert',
+                                        'props': {
+                                            'type': 'info',
+                                            'variant': 'tonal',
+                                            "text": "具体安装使用说明见README https://github.com/honue/MoviePilot-Plugins"
+                                        }
                                     }
                                 ]
                             }
