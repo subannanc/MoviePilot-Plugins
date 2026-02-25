@@ -22,7 +22,11 @@ https://github.com/honue/MoviePilot-Plugins/
 
 - [自适应IntroSkip](./docs/introskip.md)
 
-> 自适应生成IntroSkip片头标记，Emby跳片头、片尾
+> 自适应生成IntroSkip片头标记，Emby跳片头、片尾（不推荐使用，刷新元数据会导致strm媒体信息丢失，需要Emby插件配合使用，而Emby插件已包含此功能）
+
+> Emby 4.8 可使用 StrmAssistant 社区版：https://github.com/sjtuross/StrmAssistant。
+
+> 若使用 Emby 4.9，社区版本不支持，可以考虑使用我参考神医插件编写的项目：https://github.com/honue/MediaInfoKeeper
 
 - 共享识别词
 

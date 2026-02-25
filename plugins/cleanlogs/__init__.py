@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-import re
 
 import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -26,7 +25,7 @@ class CleanLogs(_PluginBase):
     # 插件图标
     plugin_icon = "clean.png"
     # 插件版本
-    plugin_version = "1.2"
+    plugin_version = "1.3"
     # 插件作者
     plugin_author = "honue"
     # 作者主页
@@ -51,12 +50,19 @@ class CleanLogs(_PluginBase):
         # 停止现有任务
         self.stop_service()
 
-        if config:
-            self._enable = config.get('enable', False)
-            self._selected_ids = config.get('selected_ids', [])
-            self._rows = int(config.get('rows', 300))
-            self._onlyonce = config.get('onlyonce', False)
-            self._cron = config.get('cron', '30 3 * * *')
+        if config is not None:
+            self._enable = bool(config.get('enable', self._enable))
+            self._selected_ids = config.get('selected_ids', self._selected_ids) or []
+            try:
+                self._rows = max(0, int(config.get('rows', self._rows)))
+            except (TypeError, ValueError):
+                self._rows = 300
+            self._onlyonce = bool(config.get('onlyonce', False))
+            self._cron = config.get('cron', self._cron)
+
+        if not self._enable and not self._onlyonce:
+            logger.info("插件日志清理未启用，跳过定时任务注册")
+            return
 
         # 定时服务
         self._scheduler = BackgroundScheduler(timezone=settings.TZ)
@@ -71,13 +77,15 @@ class CleanLogs(_PluginBase):
                 "cron": self._cron,
             })
             self._scheduler.add_job(func=self._task, trigger='date',
-                                    run_date=datetime.now(tz=pytz.timezone(settings.TZ)) + timedelta(seconds=2),
+                                    run_date=datetime.now(tz=pytz.timezone(settings.TZ)) + timedelta(seconds=3),
                                     name="插件日志清理")
+            logger.info("插件日志清理立即运行任务已注册")
         if self._enable and self._cron:
             try:
                 self._scheduler.add_job(func=self._task,
                                         trigger=CronTrigger.from_crontab(self._cron),
                                         name="插件日志清理")
+                logger.info(f"插件日志清理定时任务已注册，周期：{self._cron}")
             except Exception as err:
                 logger.error(f"插件日志清理, 定时任务配置错误：{str(err)}")
 
@@ -87,21 +95,38 @@ class CleanLogs(_PluginBase):
             self._scheduler.start()
 
     def _task(self):
-        clean_plugin = self._selected_ids[:]
+        logger.info("开始执行插件日志清理任务")
+        clean_plugin = [str(pid).lower() for pid in self._selected_ids if pid]
+        log_dir = settings.LOG_PATH / Path("plugins")
+
+        if not log_dir.exists():
+            logger.debug(f"日志目录不存在: {log_dir}")
+            return
 
         if not clean_plugin:
-            local_plugins = PluginManager().get_local_plugins()
-            for plugin in local_plugins:
-                clean_plugin.append(plugin.id)
+            # 优先按真实日志文件发现，避免因插件未加载导致无法清理
+            # 同时兼容只剩轮转日志（无主日志）场景
+            discovered = set()
+            for log_file in log_dir.glob("*.log"):
+                discovered.add(log_file.stem.lower())
+            for rotated_file in log_dir.glob("*.log.*"):
+                marker = ".log."
+                if marker in rotated_file.name:
+                    discovered.add(rotated_file.name.split(marker, 1)[0].lower())
+            clean_plugin = sorted(discovered)
+            if not clean_plugin:
+                local_plugins = PluginManager().get_local_plugins()
+                for plugin in local_plugins:
+                    clean_plugin.append(plugin.id.lower())
 
-        log_dir = settings.LOG_PATH / Path("plugins")
         for plugin_id in clean_plugin:
             log_name = f"{plugin_id.lower()}.log"
             log_path = log_dir / log_name
 
             deleted_rotated = 0
             for rotated in log_dir.glob(f"{log_name}.*"):
-                if re.search(r"\.log\.\d+$", rotated.name):
+                # 删除所有轮转后缀，兼容 .log.1 / .log.2026-xx 等形式
+                if rotated.is_file():
                     try:
                         rotated.unlink()
                         deleted_rotated += 1
@@ -115,19 +140,23 @@ class CleanLogs(_PluginBase):
                 logger.debug(f"{plugin_id} 日志文件不存在")
                 continue
 
-            with open(log_path, 'r', encoding='utf-8') as file:
-                lines = file.readlines()
+            try:
+                with open(log_path, 'rb') as file:
+                    lines = file.readlines()
 
-            if self._rows == 0:
-                top_lines = []
-            else:
-                top_lines = lines[-min(self._rows, len(lines)):]
+                if self._rows == 0:
+                    tail_lines = []
+                else:
+                    tail_lines = lines[-min(self._rows, len(lines)):]
 
-            with open(log_path, 'w', encoding='utf-8') as file:
-                file.writelines(top_lines)
-            
-            if (len(lines) - self._rows) > 0:
-                logger.info(f"已清理 {plugin_id} {len(lines) - self._rows} 行日志")
+                with open(log_path, 'wb') as file:
+                    file.writelines(tail_lines)
+
+                deleted_lines = max(0, len(lines) - len(tail_lines))
+                if deleted_lines > 0:
+                    logger.info(f"已清理 {plugin_id} {deleted_lines} 行日志")
+            except Exception as err:
+                logger.error(f"清理日志失败: {log_path}: {err}")
 
 
     def get_form(self) -> Tuple[List[dict], Dict[str, Any]]:
@@ -268,7 +297,7 @@ class CleanLogs(_PluginBase):
             "onlyonce": self._onlyonce,
             "rows": self._rows,
             "cron": self._cron,
-            "selected_ids": [],
+            "selected_ids": self._selected_ids,
         }
 
     @staticmethod
@@ -319,4 +348,11 @@ class CleanLogs(_PluginBase):
         pass
 
     def stop_service(self):
-        pass
+        try:
+            if self._scheduler:
+                self._scheduler.remove_all_jobs()
+                if self._scheduler.running:
+                    self._scheduler.shutdown()
+                self._scheduler = None
+        except Exception as e:
+            logger.error("退出插件失败：%s" % str(e))

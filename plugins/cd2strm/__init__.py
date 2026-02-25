@@ -34,7 +34,7 @@ class Cd2Strm(_PluginBase):
     # 插件图标
     plugin_icon = "https://raw.githubusercontent.com/honue/MoviePilot-Plugins/main/icons/clouddrive.png"
     # 插件版本
-    plugin_version = "0.0.4"
+    plugin_version = "0.0.5"
     # 插件作者
     plugin_author = "honue"
     # 作者主页
@@ -118,7 +118,8 @@ class Cd2Strm(_PluginBase):
     @eventmanager.register(EventType.TransferComplete)
     def update_waiting_upload_list(self, event: Event):
         transfer_info: TransferInfo = event.event_data.get('transferinfo', {})
-        logger.info(f"监测到整理剧集：{transfer_info.file_list}")
+        logger.info(f"监测到转移完成事件，文件数：{len(transfer_info.file_list or [])}")
+        logger.debug(f"转移文件明细：{transfer_info.file_list}")
         if not transfer_info.file_list_new:
             return
         # 判断是不是网盘整理的剧,网盘剧跳过
@@ -126,6 +127,8 @@ class Cd2Strm(_PluginBase):
         for source_file in transfer_info.file_list:
             if self._cd_mount_prefix_path in source_file:
                 isCloudFile = True
+            if "转存" in source_file:
+                isCloudFile = False
         with lock:
             waiting_upload_list_id = self.get_data(self._data_key_waiting_upload) or []
             uploaded_id_list = self.get_data(self._data_key_uploaded) or []
@@ -147,7 +150,7 @@ class Cd2Strm(_PluginBase):
                         is_exist = self._subscribe_oper.exists(tmdbid=media_info.tmdb_id, doubanid=media_info.douban_id,
                                                                season=media_info.season)
                         if is_exist:
-                            logger.info(f'追更剧集,{self._cron}分钟后开始执行上传任务..')
+                            logger.info(f'识别为追更剧，{self._cron}分钟后执行上传任务')
                             try:
                                 if history.id in waiting_upload_list_id or history.id in uploaded_id_list:
                                     continue
@@ -156,9 +159,9 @@ class Cd2Strm(_PluginBase):
                                 new_waiting_ids.append(history.id)
                                 new_waiting_sources.append(history.src)
                             except Exception as err:
-                                logger.error(f"定时任务配置错误：{str(err)}")
+                                logger.error(f"加入待上传队列失败，source={source_file}: {str(err)}")
                         else:
-                            logger.info(f'已完结剧集,立即执行上传任务,并生成Strm...')
+                            logger.info(f'识别为非追更剧，立即上传并生成Strm，source={source_file}')
 
                             self._scheduler.add_job(func=self.upload_task, kwargs={"immediately_id": history.id},
                                                     trigger='date',
@@ -171,13 +174,15 @@ class Cd2Strm(_PluginBase):
                 # 去重
                 waiting_upload_list_id = list(dict.fromkeys(waiting_upload_list_id))
                 self.save_data(self._data_key_waiting_upload, waiting_upload_list_id)
-                logger.info(f'新入库文件，加入待上传列表{new_waiting_sources}')
+                logger.info(f'新入库文件加入待上传列表，数量={len(new_waiting_sources)}')
+                logger.debug(f'待上传源文件明细：{new_waiting_sources}')
 
                 self._scheduler.add_job(func=self.upload_task, trigger='date',
                                         run_date=datetime.now(
                                             tz=pytz.timezone(settings.TZ)) + timedelta(
                                             minutes=self._cron),
                                         name="cd2上传任务")
+                logger.info(f"已注册延迟上传任务，延迟={self._cron}分钟")
 
             self._scheduler.start()
 
@@ -198,7 +203,7 @@ class Cd2Strm(_PluginBase):
                 waiting_upload_id_list = self.get_data(self._data_key_waiting_upload) or []
                 uploaded_id_list = self.get_data(self._data_key_uploaded) or []
                 if not waiting_upload_id_list:
-                    logger.info('没有需要上传的媒体文件')
+                    logger.debug('没有需要上传的媒体文件')
                     return
                 logger.info(f'开始执行上传任务 转移记录：{waiting_upload_id_list} ')
                 task_list = waiting_upload_id_list.copy()
@@ -223,16 +228,16 @@ class Cd2Strm(_PluginBase):
                 task_list = list(dict.fromkeys(task_list))
                 uploaded_id_list = list(dict.fromkeys(uploaded_id_list))
 
-                logger.info(f"待创建Strm：{[self._history_oper.get(i).src for i in uploaded_id_list]}")
+                logger.info(f"本轮上传完成：成功={len(uploaded_id_list)}，待处理={len(task_list)}")
+                logger.debug(f"待创建Strm记录：{[self._history_oper.get(i).src for i in uploaded_id_list]}")
 
                 self.save_data(self._data_key_waiting_upload, task_list)
                 self.save_data(self._data_key_uploaded, uploaded_id_list)
         except Exception as e:
-            logger.error(e)
+            logger.error(f"执行上传任务异常: {e}", exc_info=True)
 
 
     def _upload_file(self, local_source: str = None, cd2_dest: str = None) -> bool:
-        logger.info('')
         try:
             cd2_dest_folder, cd2_dest_file_name = os.path.split(cd2_dest)
 
@@ -240,7 +245,7 @@ class Cd2Strm(_PluginBase):
                 os.makedirs(cd2_dest_folder)
                 logger.info(f'创建文件夹 {cd2_dest_folder}')
 
-            logger.info(f'源文件路径 {local_source}')
+            logger.debug(f'源文件路径 {local_source}')
             if self._cd_mount_prefix_path in local_source:
                 logger.info(f'源文件 {local_source} 是网盘文件，不上传')
                 return True
@@ -252,15 +257,16 @@ class Cd2Strm(_PluginBase):
                 logger.info(f'{cd2_dest_file_name} 已存在 {cd2_dest}')
             return True
         except Exception as e:
-            logger.error(e)
+            logger.error(f"上传文件失败，source={local_source}, dest={cd2_dest}: {e}", exc_info=True)
             return False
 
     def del_dest_create_strm_task(self, now_delete: bool = False):
-        logger.info("定时任务,检查是否需要 删除本地媒体文件，创建Strm\n")
         with lock:
             try:
                 uploaded_id_list = self.get_data(self._data_key_uploaded) or []
                 temp_list = uploaded_id_list.copy()
+                deleted_count = 0
+                skipped_count = 0
                 for id in temp_list:
                     history: TransferHistory = self._history_oper.get(id)
                     if history is None:
@@ -272,6 +278,7 @@ class Cd2Strm(_PluginBase):
                         self.del_dest_file(id)
                         self.create_strm_task(id)
                         uploaded_id_list.remove(id)
+                        deleted_count += 1
                         continue
                     history_date = datetime.strptime(history.date, "%Y-%m-%d %H:%M:%S")
                     if (datetime.now() - history_date).total_seconds() > self._save_days * 86400:
@@ -279,12 +286,15 @@ class Cd2Strm(_PluginBase):
                         self.del_dest_file(id)
                         self.create_strm_task(id)
                         uploaded_id_list.remove(id)
+                        deleted_count += 1
                         continue
                     else:
-                        logger.info(f"{history.dest} 整理时间：{history_date}，未过期，跳过")
+                        skipped_count += 1
+                        logger.debug(f"{history.dest} 整理时间：{history_date}，未过期，跳过")
                 self.save_data(self._data_key_uploaded, uploaded_id_list)
+                logger.info(f"清理任务完成：删除并生成Strm={deleted_count}，未过期跳过={skipped_count}，剩余待处理={len(uploaded_id_list)}")
             except Exception as err:
-                logger.error(err)
+                logger.error(f"执行清理并生成Strm任务异常: {err}", exc_info=True)
 
     def del_dest_file(self, id: int):
         try:
@@ -313,7 +323,7 @@ class Cd2Strm(_PluginBase):
         try:
             with open(strm_file_path, "w") as strm_file:
                 strm_file.write(cd2_dest)
-            logger.info(f"生成strm文件 {strm_file_path} <- 写入 {cd2_dest} \n")
+            logger.info(f"生成strm文件 {strm_file_path} <- 写入 {cd2_dest}")
         except OSError as e:
             logger.error(f"写入 STRM 文件失败: {e}")
 
@@ -339,7 +349,7 @@ class Cd2Strm(_PluginBase):
                                 'component': 'VCol',
                                 'props': {
                                     'cols': 12,
-                                    'md': 3
+                                    'md': 12
                                 },
                                 'content': [
                                     {
@@ -350,23 +360,14 @@ class Cd2Strm(_PluginBase):
                                         }
                                     }
                                 ]
-                            },
+                            }
+                        ]
+                    }
+                    ,
+                    {
+                        'component': 'VRow',
+                        'content': [
                             {
-                                'component': 'VCol',
-                                'props': {
-                                    'cols': 12,
-                                    'md': 3
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VSwitch',
-                                        'props': {
-                                            'model': 'onlyonce',
-                                            'label': '立即上传一次',
-                                        }
-                                    }
-                                ]
-                            }, {
                                 'component': 'VCol',
                                 'props': {
                                     'cols': 12,
@@ -376,17 +377,12 @@ class Cd2Strm(_PluginBase):
                                     {
                                         'component': 'VSwitch',
                                         'props': {
-                                            'model': 'cleanlocal',
-                                            'label': '立即清理追更媒体文件，生成Strm',
+                                            'model': 'onlyonce',
+                                            'label': '立即执行上传任务',
                                         }
                                     }
                                 ]
-                            }
-                        ]
-                    }
-                    , {
-                        'component': 'VRow',
-                        'content': [
+                            },
                             {
                                 'component': 'VCol',
                                 'props': {
@@ -398,8 +394,50 @@ class Cd2Strm(_PluginBase):
                                         'component': 'VTextField',
                                         'props': {
                                             'model': 'cron',
-                                            'label': '追更剧集入库（分钟）后上传',
+                                            'label': '上传延迟（分钟）',
                                             'placeholder': '20'
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VAlert',
+                                        'props': {
+                                            'type': 'info',
+                                            'variant': 'tonal',
+                                            'text': '任务一（上传任务）：新入库追更剧会先进入待上传队列，达到延迟分钟数后批量上传到 cd2 挂载路径；非追更剧会立即上传。',
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 6
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VSwitch',
+                                        'props': {
+                                            'model': 'cleanlocal',
+                                            'label': '立即执行清理并生成STRM',
                                         }
                                     }
                                 ]
@@ -415,7 +453,7 @@ class Cd2Strm(_PluginBase):
                                         'component': 'VTextField',
                                         'props': {
                                             'model': 'save_days',
-                                            'label': '清理本地媒体库文件任务间隔（天）',
+                                            'label': '本地保留天数',
                                             'placeholder': '3'
                                         }
                                     }
@@ -423,7 +461,8 @@ class Cd2Strm(_PluginBase):
                             }
                         ]
                     }
-                    , {
+                    ,
+                    {
                         'component': 'VRow',
                         'content': [
                             {
@@ -442,7 +481,8 @@ class Cd2Strm(_PluginBase):
                                         }
                                     }
                                 ]
-                            }, {
+                            },
+                            {
                                 'component': 'VCol',
                                 'props': {
                                     'cols': 12,
@@ -453,8 +493,29 @@ class Cd2Strm(_PluginBase):
                                         'component': 'VTextField',
                                         'props': {
                                             'model': 'cd_mount_prefix_path',
-                                            'label': 'cd2挂载媒体库路径前缀',
+                                            'label': 'cd2 挂载媒体库路径前缀',
                                             'placeholder': '/CloudNAS/115/emby/'
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VAlert',
+                                        'props': {
+                                            'type': 'info',
+                                            'variant': 'tonal',
+                                            'text': '任务二（清理并生成STRM）：插件每 20 分钟检查一次转移记录，超过保留天数的本地媒体媒体库将被删除，并在原位置生成 .strm 文件。',
                                         }
                                     }
                                 ]
@@ -466,6 +527,7 @@ class Cd2Strm(_PluginBase):
         ], {
             'enable': self._enable,
             'cron': self._cron,
+            'save_days': self._save_days,
             'onlyonce': self._onlyonce,
             'cleanlocal': self._cleanlocal,
             'local_media_prefix_path': self._local_media_prefix_path,

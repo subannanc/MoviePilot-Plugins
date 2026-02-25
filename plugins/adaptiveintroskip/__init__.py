@@ -22,7 +22,7 @@ class AdaptiveIntroSkip(_PluginBase):
     # 插件图标
     plugin_icon = "https://raw.githubusercontent.com/honue/MoviePilot-Plugins/main/icons/chapter.png"
     # 插件版本
-    plugin_version = "1.7.7"
+    plugin_version = "1.7.8"
     # 插件作者
     plugin_author = "honue"
     # 作者主页
@@ -394,6 +394,14 @@ class AdaptiveIntroSkip(_PluginBase):
                                     'cols': 12,
                                 },
                                 'content': [
+                                    {
+                                        'component': 'VAlert',
+                                        'props': {
+                                            'type': 'info',
+                                            'variant': 'tonal',
+                                            "text": "Emby 4.9 推荐使用：https://github.com/honue/MediaInfoKeeper"
+                                        }
+                                    },
                                     {
                                         'component': 'VAlert',
                                         'props': {
