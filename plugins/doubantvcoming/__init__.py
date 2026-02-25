@@ -549,7 +549,11 @@ class DoubanTvComing(_PluginBase):
             self.post_message(
                 mtype=NotificationType.Subscribe,
                 title=f"{mediainfo.title_year} Season {meta.begin_season if meta.begin_season else '1'} 已添加订阅",
-                text=f"{rss_description or mediainfo.overview or '暂无简介'}\n豆瓣链接：{link}\n\n[{self.plugin_name}]",
+                text=(
+                    f"{rss_description or mediainfo.overview or '暂无简介'}\n"
+                    f"豆瓣链接：{self.__build_douban_dispatch_link(link)}\n\n"
+                    f"[{self.plugin_name}]"
+                ),
                 image=mediainfo.get_message_image(),
                 link=settings.MP_DOMAIN("#/subscribe/tv?tab=mysub")
             )
@@ -701,3 +705,13 @@ class DoubanTvComing(_PluginBase):
             return 0 <= diff_days <= days
         except Exception:
             return False
+
+    @staticmethod
+    def __build_douban_dispatch_link(link: str) -> str:
+        if not link:
+            return ""
+        match = re.search(r"/subject/(\d+)/?", link)
+        if not match:
+            return link
+        subject_id = match.group(1)
+        return f"https://www.douban.com/doubanapp/dispatch?uri=/movie/{subject_id}?from=mdouban&open=app"
