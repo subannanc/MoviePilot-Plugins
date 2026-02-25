@@ -292,7 +292,7 @@ class Cd2Strm(_PluginBase):
                         skipped_count += 1
                         logger.debug(f"{history.dest} 整理时间：{history_date}，未过期，跳过")
                 self.save_data(self._data_key_uploaded, uploaded_id_list)
-                logger.info(f"清理任务完成：删除并生成Strm={deleted_count}，未过期跳过={skipped_count}，剩余待处理={len(uploaded_id_list)}")
+                # logger.info(f"清理任务完成：删除并生成Strm={deleted_count}，未过期跳过={skipped_count}，剩余待处理={len(uploaded_id_list)}")
             except Exception as err:
                 logger.error(f"执行清理并生成Strm任务异常: {err}", exc_info=True)
 

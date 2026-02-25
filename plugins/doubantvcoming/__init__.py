@@ -95,7 +95,7 @@ class DoubanTvComing(_PluginBase):
                         trigger=CronTrigger.from_crontab(self._cron),
                         name="豆瓣剧集即将播出订阅"
                     )
-                    logger.info(f"豆瓣剧集即将播出订阅服务启动，周期：{self._cron}")
+                    # logger.info(f"豆瓣剧集即将播出订阅服务启动，周期：{self._cron}")
                 except Exception as err:
                     logger.error(f"豆瓣剧集即将播出订阅服务启动失败：{err}")
                     self.systemmessage.put(f"豆瓣剧集即将播出订阅服务启动失败：{err}")
@@ -310,8 +310,8 @@ class DoubanTvComing(_PluginBase):
                                             "type": "info",
                                             "variant": "tonal",
                                             "text": (
-                                                "规则说明：先按想看人数阈值过滤；地区/类型筛选为“命中任一即通过”，未选择则不筛选；"
-                                                f"随后通过TMDB获取首播日期，仅订阅{self._air_date_within_days}天内将播出的剧集。"
+                                                "先按想看人数阈值过滤；地区/类型筛选为“命中任一即通过”，未选择则不筛选；"
+                                                "随后通过TMDB获取首播日期，仅订阅窗口期内将播出的剧集。"
                                             )
                                         }
                                     }
@@ -490,6 +490,7 @@ class DoubanTvComing(_PluginBase):
             unique_flag = f"doubantvcoming:{link or title}"
             logger.info(f"\n")
 
+            logger.info(f"标题：{title}，想看人数：{wish_count}，地区：{regions}，类型：{genres}")
             if unique_flag in unique_history:
                 logger.info(f"{title} 已处理过")
                 continue
@@ -547,8 +548,8 @@ class DoubanTvComing(_PluginBase):
             
             self.post_message(
                 mtype=NotificationType.Subscribe,
-                title=f"{mediainfo.title_year} S{meta.begin_season if meta.begin_season else '1'} 已添加订阅",
-                text=f"{rss_description or mediainfo.overview or '暂无简介'}\n\n[{self.plugin_name}]",
+                title=f"{mediainfo.title_year} Season {meta.begin_season if meta.begin_season else '1'} 已添加订阅",
+                text=f"{rss_description or mediainfo.overview or '暂无简介'}\n豆瓣链接：{link}\n\n[{self.plugin_name}]",
                 image=mediainfo.get_message_image(),
                 link=settings.MP_DOMAIN("#/subscribe/tv?tab=mysub")
             )
